@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cincinnati Telemetry Terminal</title>
+    <style>
+        /* IBM 3270 High-Contrast Solid Black & Amber */
+        body {
+            background-color: #000000;
+            color: #ff9900; 
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        #monitor-frame {
+            border: 2px solid #ff9900;
+            padding: 20px;
+            height: calc(100vh - 45px);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        .header {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 15px;
+            border-bottom: 1px dashed #ff9900;
+            padding-bottom: 8px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 15px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        #clock-display {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .dashboard-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex-grow: 1;
+        }
+
+        /* Responsive stack for older tablet viewports */
+        @media (min-width: 600px) {
+            .dashboard-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+        }
+
+        .data-block {
+            white-space: pre-wrap;
+            line-height: 1.5;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: auto;
+            border-top: 1px dashed #ff9900;
+            padding-top: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+
+<div id="monitor-frame">
+    <div class="header">
+        IBM 3270 PRIMARY DATA MATRIX // STATION: KILN_ILN
+    </div>
+
+    <div class="section-title">[ SYSTEM TIMELINE ]</div>
+    <div id="clock-display">LOADING CLOCK SIGNAL...</div>
+
+    <div class="dashboard-grid">
+        <div>
+            <div class="section-title">[ LIVE RADAR OBSERVATIONS ]</div>
+            <div id="current-payload" class="data-block">CONNECTING TO METAR RADAR STREAM...</div>
+        </div>
+        <div>
+            <div class="section-title">[ GRID AREA OUTLOOK ]</div>
+            <div id="forecast-payload" class="data-block">QUERYING NWS FORECAST COMPUTERS...</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>UNIT STATUS: SECURE</span>
+        <span id="refresh-counter">NEXT REFRESH: 15:00</span>
+    </div>
+</div>
+
+<script>
+    const clockDisplay = document.getElementById('clock-display');
+    const currentPayload = document.getElementById('current-payload');
+    const forecastPayload = document.getElementById('forecast-payload');
+    const refreshCounter = document.getElementById('refresh-counter');
+    
+    let secondsUntilRefresh = 900; // 15 minutes
+
+    function updateClock() {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString();
+        const dateStr = now.toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+        clockDisplay.innerText = `${timeStr}  |  ${dateStr.toUpperCase()}`;
+    }
+
+    async function updateDashboardData() {
+        // Run both API requests at the exact same time
+        await Promise.all([
+            fetchCurrentObservations(),
+            fetchGridForecast()
+        ]);
+    }
+
+    // Column 1: Live Radar Station (Lunken Airport Local Feed)
+    async function fetchCurrentObservations() {
+        try {
+            const response = await fetch('https://api.weather.gov/stations/KLUK/observations/latest', {
+                headers: { 'User-Agent': 'RetroKioskDashboard/2.0 (contact@example.com)' }
+            });
+            if (!response.ok) throw new Error("METAR target dropped link.");
+            const data = await response.json();
+            const props = data.properties;
+
+            const condition = props.textDescription || "CLEAR";
+            const tempC = props.temperature.value;
+            const tempF = tempC !== null ? Math.round((tempC * 9/5) + 32) : "N/A";
+            const humidity = props.relativeHumidity.value !== null ? Math.round(props.relativeHumidity.value) : "N/A";
+            const windMs = props.windSpeed.value;
+            const windMph = windMs !== null ? Math.round(windMs * 2.237) : "0";
+
+            currentPayload.innerText = 
+                `STATION ID : KLUK (CINCINNATI, OH)\n` +
+                `STATUS     : ACTIVE\n` +
+                `SKY CONDS  : ${condition.toUpperCase()}\n` +
+                `TEMP CHIP  : ${tempF}°F (${tempC !== null ? tempC.toFixed(1) : "N"}°C)\n` +
+                `HUMIDITY   : ${humidity}%\n` +
+                `WIND FORCE : ${windMph} MPH`;
+        } catch (err) {
+            currentPayload.innerText = `ERR: CH 01 LINK DROP\n(${err.message.toUpperCase()})`;
+        }
+    }
+
+    // Column 2: 3-Period Extended Forecast Grid (Wilmington Office Area)
+    async function fetchGridForecast() {
+        try {
+            // NWS API Grid Coordinates matching Greater Cincinnati 
+            const response = await fetch('https://api.weather.gov/gridpoints/ILN/31,43/forecast', {
+                headers: { 'User-Agent': 'RetroKioskDashboard/2.0 (contact@example.com)' }
+            });
+            if (!response.ok) throw new Error("Forecast engine offline.");
+            const data = await response.json();
+            const periods = data.properties.periods;
+
+            // Extract the next three 12-hour shifts (e.g., Today, Tonight, Tomorrow)
+            let forecastText = "";
+            const totalPeriodsToDisplay = Math.min(periods.length, 3);
+            
+            for (let i = 0; i < totalPeriodsToDisplay; i++) {
+                const period = periods[i];
+                const name = period.name.toUpperCase();
+                const temp = period.temperature;
+                const type = period.isDaytime ? "HIGH" : "LOW";
+                const pop = period.probabilityOfPrecipitation?.value || 0;
+                const shortDesc = period.shortForecast.toUpperCase();
+
+                forecastText += 
+                    `${name}:\n` +
+                    `  EXPECTED : ${shortDesc}\n` +
+                    `  THERMAL  : ${temp}°F [${type}]\n` +
+                    `  PRECIP%  : ${pop}%\n\n`;
+            }
+
+            forecastPayload.innerText = forecastText.trim();
+        } catch (err) {
+            forecastPayload.innerText = `ERR: CH 02 LINK DROP\n(${err.message.toUpperCase()})`;
+        }
+    }
+
+    function updateCountdown() {
+        secondsUntilRefresh--;
+        if (secondsUntilRefresh <= 0) {
+            updateDashboardData();
+            secondsUntilRefresh = 900; 
+        }
+        
+        const mins = Math.floor(secondsUntilRefresh / 60);
+        const secs = secondsUntilRefresh % 60;
+        refreshCounter.innerText = `NEXT REFRESH: ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    window.onload = function() {
+        updateClock();
+        updateDashboardData();
+        
+        setInterval(updateClock, 1000);
+        setInterval(updateCountdown, 1000);
+    };
+</script>
+
+</body>
+</html>
