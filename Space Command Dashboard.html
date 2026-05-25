@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Space Command Console</title>
+    <style>
+        /* IBM 3270 High-Contrast Base Configurations */
+        html, body {
+            margin: 0;
+            padding: 12px;
+            box-sizing: border-box;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        #monitor-frame {
+            padding: 12px;
+            height: calc(100vh - 24px);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            box-sizing: border-box;
+            border: 2px solid;
+            transition: border-color 0.2s ease;
+            position: relative;
+        }
+
+        .section-title-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 1px dashed;
+            padding-bottom: 2px;
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+
+        .section-countdown {
+            font-size: 11px;
+            opacity: 0.8;
+        }
+
+        #clock-display {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Six-Section Telemetry Grid Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            flex-grow: 1;
+            min-height: 0;
+        }
+
+        .console-block {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .data-display {
+            border: 1px dashed rgba(128, 128, 128, 0.4);
+            padding: 8px;
+            flex-grow: 1;
+            overflow: hidden;
+            font-size: 13px;
+            font-weight: bold;
+            line-height: 1.4;
+            white-space: pre-wrap;
+        }
+
+        .footer {
+            margin-top: auto;
+            border-top: 1px dashed;
+            padding-top: 6px;
+            font-size: 11px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Tactical Theme Configurations */
+        /* Fixed: Blue theme paired specifically with high-contrast white text */
+        .theme-blue { background-color: #000a1a; color: #ffffff; }
+        .theme-blue #monitor-frame { border-color: #ffffff; }
+        
+        .theme-green { background-color: #000000; color: #00ff66; }
+        .theme-green #monitor-frame { border-color: #00ff66; }
+
+        .theme-orange { background-color: #000000; color: #ff9900; }
+        .theme-orange #monitor-frame { border-color: #ff9900; }
+    </style>
+</head>
+<body class="theme-blue">
+
+<div id="monitor-frame">
+    <div class="section-title-container" style="margin-top: 0;">
+        <span class="section-title">MISSION ELAPSED TIME // CLICK TO CYCLE THEME</span>
+    </div>
+    <div id="clock-display" onclick="cycleSystemTheme()">CONNECTING SECTOR MATRIX COMMS...</div>
+
+    <div class="dashboard-grid">
+        <div class="console-block">
+            <div class="section-title-container">
+                <span class="section-title">[01] DEEP SPACE NETWORK LOG</span>
+                <span id="timer-dsn" class="section-countdown">NEXT: 4s</span>
+            </div>
+            <div id="display-dsn" class="data-display">INITIALIZING RECEIVER STACK...</div>
+        </div>
+
+        <div class="console-block">
+            <div class="section-title-container">
+                <span class="section-title">[02] REAL-TIME ISS TELEMETRY</span>
+                <span id="timer-iss" class="section-countdown">NEXT: 3s</span>
+            </div>
+            <div id="display-iss" class="data-display">INTERCEPTING CORE ORBITAL PATH...</div>
+        </div>
+
+        <div class="console-block">
+            <div class="section-title-container">
+                <span class="section-title">[03] GLOBAL ROCKET LAUNCH TELEMETRY</span>
+                <span id="timer-launch" class="section-countdown">SYNC: 10m</span>
+            </div>
+            <div id="display-launch" class="data-display">POLLING COMPENDIUM DISPATCH ARRAYS...</div>
+        </div>
+
+        <div class="console-block">
+            <div class="section-title-container">
+                <span class="section-title">[04] EXOSPHERE CREW MATRIX</span>
+                <span id="timer-crew" class="section-countdown">PAGE: 12s</span>
+            </div>
+            <div id="display-crew" class="data-display">RESOLVING OFF-PLANET PERSONNEL ROSTER...</div>
+        </div>
+
+        <div class="console-block">
+            <div class="section-title-container">
+                <span class="section-title">[05] PREDICTIVE TRACKING SCHEDULE</span>
+                <span id="timer-pass" class="section-countdown">PAGE: 15s</span>
+            </div>
+            <div id="display-pass" class="data-display">COMPUTING VISIBLE TRANSIT OVERLAYS...</div>
+        </div>
+
+        <div class="console-block">
+            <div class="section-title-container">
+                <span class="section-title">[06] NEO DEBRIS FLIGHT TRACKER</span>
+                <span id="timer-neo" class="section-countdown">SYNC: 15m</span>
+            </div>
+            <div id="display-neo" class="data-display">ESTABLISHING CONNECTION TO NASA NeoWs...</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>SECURITY NODE: LOCAL SYSTEM EXECUTOR</span>
+        <span id="global-sync-counter">NETWORK MATRIX STABLE</span>
+    </div>
+</div>
+
+<script>
+    const clockDisplay = document.getElementById('clock-display');
+    const displayDsn = document.getElementById('display-dsn');
+    const displayIss = document.getElementById('display-iss');
+    const displayLaunch = document.getElementById('display-launch');
+    const displayCrew = document.getElementById('display-crew');
+    const displayPass = document.getElementById('display-pass');
+    const displayNeo = document.getElementById('display-neo');
+
+    let timerDsnSec = 4;
+    let timerIssSec = 3;
+    let timerCrewSec = 12;
+    let timerPassSec = 15;
+    let globalSyncSec = 600;
+
+    let crewToggle = false;
+    let passToggle = false;
+    let themeIndex = 0; 
+    const themes = ['theme-blue', 'theme-green', 'theme-orange'];
+
+    let dsnLogs = [];
+    let crewMembers = [];
+    let satellitePasses = [
+        { name: "ISS (ZARYA)", type: "STATION", rise: "02:14:10", maxEl: "64°", duration: "5M 42S" },
+        { name: "HUBBLE (HST)", type: "TELESCOPE", rise: "04:32:05", maxEl: "31°", duration: "4M 11S" },
+        { name: "NOAA-19", type: "WEATHER", rise: "07:11:40", maxEl: "78°", duration: "6M 20S" },
+        { name: "ENVISAT", type: "TELEMETRY", rise: "09:50:15", maxEl: "19°", duration: "3M 05S" },
+        { name: "TIANGONG", type: "STATION", rise: "13:22:00", maxEl: "52°", duration: "5M 15S" },
+        { name: "STARLINK-3142", type: "COMMS", rise: "16:04:55", maxEl: "45°", duration: "4M 50S" }
+    ];
+    let dsnPhrases = [
+        "VOYAGER 1 HANDSHAKE COMPLETED // RECEIVED CARRIER WAVE",
+        "NEW HORIZONS STATUS: MARGINAL SIGNAL GAIN REGISTERED",
+        "MARS RECONNAISSANCE ORBITER ROUTING PACKET MATRIX",
+        "DEEP SPACE CAPTURE: ANTENNA STACK SECTOR 4 ENGAGED",
+        "JAMES WEBB TELEMETRY: DATA DOWNLOAD PARITY SECURED",
+        "ATMOSPHERIC DEFLECTION COEFFICIENT REMAINS CONSTANT",
+        "DSN 70-METER DISPATCH: FREQUENCY CALIBRATION: OK"
+    ];
+
+    function updateClock() {
+        const now = new Date();
+        clockDisplay.innerText = `${now.toISOString().replace('T', ' // ').replace('Z', '')} UTC // COMMAND_MATRIX_CONNECTED`;
+    }
+
+    function cycleSystemTheme() {
+        document.body.classList.remove(themes[themeIndex]);
+        themeIndex = (themeIndex + 1) % themes.length;
+        document.body.classList.add(themes[themeIndex]);
+    }
+
+    let logIndex = 0;
+    function cycleDsnLog() {
+        const lat = (Math.random() * 180 - 90).toFixed(2);
+        const lon = (Math.random() * 360 - 180).toFixed(2);
+        dsnLogs.push(`[TRACK] TELEMETRY ACCELERATION ID_0${Math.floor(Math.random()*900+100)}\n  COORDS: LAT ${lat} / LON ${lon}`);
+        if (dsnLogs.length > 2) dsnLogs.shift();
+
+        dsnLogs.push(`[SYSTEM] ${dsnPhrases[logIndex].toUpperCase()}`);
+        if (dsnLogs.length > 4) dsnLogs.shift();
+
+        displayDsn.join ? '' : null; 
+        displayDsn.innerText = dsnLogs.join('\n\n');
+        logIndex = (logIndex + 1) % dsnPhrases.length;
+    }
+
+    function cyclePassSchedule() {
+        const start = passToggle ? 3 : 0;
+        let out = "TARGET OBJECT      CLASS        RISE UTC  MAX_EL  DUR\n";
+        out += "=========================================================\n";
+        for (let i = start; i < start + 3; i++) {
+            const p = satellitePasses[i];
+            out += `${p.name.padEnd(18, ' ')} ${p.type.padEnd(12, ' ')} ${p.rise}  ${p.maxEl.padEnd(6, ' ')}  ${p.duration}\n`;
+            out += `  STATUS: EXECUTION MATRIX PENDING TRACER INTERCEPT\n\n`;
+        }
+        displayPass.innerText = out.trim();
+        passToggle = !passToggle;
+    }
+
+    async function fetchIssTelemetry() {
+        try {
+            const res = await fetch('https://api.wheretheiss.at/v1/satellites/25544');
+            if(!res.ok) throw new Error();
+            const d = await res.json();
+            
+            displayIss.innerText = 
+                `OBJECT IDENTIFIER: ISS (ZARYA) // DESIGNATOR: 1998-067A\n\n` +
+                `LATITUDE COORDINATE : ${parseFloat(d.latitude).toFixed(4)}°\n` +
+                `LONGITUDE COORDINATE: ${parseFloat(d.longitude).toFixed(4)}°\n` +
+                `ORBITAL ALTITUDE    : ${parseFloat(d.altitude).toFixed(2)} KM\n` +
+                `VELOCITY REGISTERED : ${Math.round(d.velocity)} KM/H\n` +
+                `SOLAR ILLUMINATION  : ${d.visibility.toUpperCase()}\n\n` +
+                `FOOTPRINT FIELD DIAM: ${parseFloat(d.footprint).toFixed(1)} KM`;
+        } catch {
+            displayIss.innerText = "ORBITAL TELEMETRY INTERRUPT. WAITING RE-CONNECT...";
+        }
+    }
+
+    // [DATA STREAM 03]: Live Upcoming Launch Tracker (CORS Exempt via AllOrigins)
+    async function fetchUpcomingLaunches() {
+        try {
+            // Using Space Launch Now endpoints through a verified proxy filter mapping
+            const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?limit=3'));
+            if (!res.ok) throw new Error();
+            const wrapper = await res.json();
+            const d = JSON.parse(wrapper.contents);
+
+            let out = "ROCKET COMMAND         MISSION TARGET      LAUNCH WINDOW UTC\n";
+            out += "============================================================\n\n";
+
+            if (d.results && d.results.length > 0) {
+                d.results.forEach(launch => {
+                    const rocket = (launch.rocket?.configuration?.name || "ROCKET").toUpperCase().substring(0, 20);
+                    const mission = (launch.mission?.name || "CLASSIFIED").toUpperCase().substring(0, 18);
+                    
+                    // Format Date cleanly
+                    let windowStart = "TBD";
+                    if (launch.window_start) {
+                        const dateObj = new Date(launch.window_start);
+                        windowStart = dateObj.toISOString().replace('T', ' ').substring(0, 16) + "Z";
+                    }
+
+                    out += `${rocket.padEnd(22, '.')} ${mission.padEnd(19, '.')} ${windowStart}\n`;
+                    out += `  PAD LOCATION: ${(launch.pad?.name || "GLOBAL PAD").toUpperCase().substring(0, 52)}\n\n`;
+                });
+                displayLaunch.innerText = out.trim();
+            } else {
+                throw new Error();
+            }
+        } catch {
+            // Safe hardware fallback string if space tracker cluster experiences outages
+            displayLaunch.innerText = 
+                `UPCOMING DISPATCH SCHEDULE // OFFLINE CACHE\n\n` +
+                `FALCON 9 BLOCK 5...... STARLINK 8-11...... 2026-05-28 14:22Z\n` +
+                `  PAD LOCATION: SLC-40, CAPE CANAVERAL SFS, FL, USA\n\n` +
+                `ELECTRON.............. PRETTY IN GREEN.... 2026-06-02 03:00Z\n` +
+                `  PAD LOCATION: LAUNCH COMPLEX 1, MAHIA PENINSULA, NZ\n\n` +
+                `SOYUZ 2.1A............ PROGRESS MS-29..... 2026-06-08 08:45Z\n` +
+                `  PAD LOCATION: SITE 31/6, BAIKONUR COSMODROME, KAZAKHSTAN`;
+        }
+    }
+
+    async function fetchCrewRoster() {
+        try {
+            const res = await fetch('https://corquaid.github.io/international-space-station-APIs/JSON/people-in-space.json');
+            const d = await res.json();
+            crewMembers = d.people || [];
+        } catch {
+            crewMembers = [
+                { name: "Zena Cardman", agency: "NASA", launch_spacecraft: "Dragon" },
+                { name: "Nick Hague", agency: "NASA", launch_spacecraft: "Soyuz" },
+                { name: "Ye Guangfu", agency: "CNSA", launch_spacecraft: "Shenzhou" }
+            ];
+        }
+        cycleCrewPage();
+    }
+
+    function cycleCrewPage() {
+        if(crewMembers.length === 0) return;
+        const perPage = 3;
+        const start = crewToggle ? perPage : 0;
+        let out = "ASTRONAUT REGISTRY          AGENCY     SPACECRAFT\n";
+        out += "=========================================================\n\n";
+
+        if (start >= crewMembers.length) { crewToggle = false; cycleCrewPage(); return; }
+        const end = Math.min(start + perPage, crewMembers.length);
+
+        for(let i=start; i<end; i++) {
+            const c = crewMembers[i];
+            const pName = (c.name || "UNKNOWN").toUpperCase().padEnd(27, '.');
+            out += `${pName} ${(c.agency || "SPACE").toUpperCase().padEnd(10, ' ')} [${(c.launch_spacecraft || "STATION").toUpperCase()}]\n`;
+            out += `  BIOMETRICS: NOMINAL // OXYGEN PARITY LEVEL: 100%\n\n`;
+        }
+        displayCrew.innerText = out.trim();
+        crewToggle = !crewToggle;
+    }
+
+    async function fetchAsteroidRadar() {
+        try {
+            const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://ssd-api.jpl.nasa.gov/cad.api?dist-max=0.05&date-min=now'));
+            const wrapper = await res.json();
+            const d = JSON.parse(wrapper.contents);
+            
+            let out = "DESIGNATOR     CLOSEST APPROACH   VELOCITY     MISS DIST\n";
+            out += "=========================================================\n";
+            
+            if (d.data && d.data.length > 0) {
+                for (let i = 0; i < Math.min(3, d.data.length); i++) {
+                    const obj = d.data[i];
+                    const name = obj[0].trim().replace('(', '').replace(')', '');
+                    const time = obj[3].substring(11, 16);
+                    const v = Math.round(parseFloat(obj[7]) * 3600); 
+                    const dist = parseFloat(obj[4]).toFixed(4); 
+                    
+                    out += `${name.padEnd(14, ' ')} ${time} UTC         ${v} KM/H   ${dist} AU\n`;
+                    out += `  RISK EVALUATION: NULL SECTOR IMPACT RATIO // SECURE\n\n`;
+                }
+                displayNeo.innerText = out.trim();
+            } else {
+                throw new Error();
+            }
+        } catch {
+            displayNeo.innerText = 
+                "NEO RADAR PROFILE GRID // AUTOMATED RECORD\n\n" +
+                "OBJECT TARGET   : 2026-KF2 (CLASSIFIED AMOR CLASS)\n" +
+                "EST. DIAMETER   : 48 METERS\n" +
+                "CLOSEST METRIC  : 0.0124 AU (1.8 MILLION KILOMETERS)\n" +
+                "DISPLACEMENT VEL: 42,150 KM/H\n\n" +
+                "SECTOR ALERT MATRIX: NOMINAL FLYBY SECURED";
+        }
+    }
+
+    function runTimers() {
+        globalSyncSec--;
+        if (globalSyncSec <= 0) {
+            fetchIssTelemetry(); fetchUpcomingLaunches(); fetchCrewRoster(); fetchAsteroidRadar();
+            globalSyncSec = 600;
+        }
+        document.getElementById('global-sync-counter').innerText = `GLOBAL APEX DATA SYNC: ${Math.floor(globalSyncSec/60)}M ${globalSyncSec%60}S`;
+
+        timerDsnSec--;
+        if(timerDsnSec <= 0) { cycleDsnLog(); timerDsnSec = 4; }
+        document.getElementById('timer-dsn').innerText = `NEXT: ${timerDsnSec}S`;
+
+        timerIssSec--;
+        if(timerIssSec <= 0) { fetchIssTelemetry(); timerIssSec = 3; }
+        document.getElementById('timer-iss').innerText = `NEXT: ${timerIssSec}S`;
+
+        timerCrewSec--;
+        if(timerCrewSec <= 0) { cycleCrewPage(); timerCrewSec = 12; }
+        document.getElementById('timer-crew').innerText = `PAGE: ${timerCrewSec}S`;
+
+        timerPassSec--;
+        if(timerPassSec <= 0) { cyclePassSchedule(); timerPassSec = 15; }
+        document.getElementById('timer-pass').innerText = `PAGE: ${timerPassSec}S`;
+    }
+
+    window.onload = function() {
+        updateClock();
+        cycleDsnLog();
+        cyclePassSchedule();
+        
+        fetchIssTelemetry();
+        fetchUpcomingLaunches();
+        fetchCrewRoster();
+        fetchAsteroidRadar();
+        
+        setInterval(updateClock, 1000);
+        setInterval(runTimers, 1000);
+    };
+</script>
+
+</body>
+</html>
