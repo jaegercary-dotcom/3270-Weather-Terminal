@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global History Terminal // VERTICAL</title>
+    <style>
+        /* IBM 3270 High-Contrast Base Configurations */
+        html, body {
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+
+        #monitor-frame {
+            padding: 20px;
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            box-sizing: border-box;
+            border: 2px solid;
+            transition: border-color 0.2s ease;
+            position: relative;
+        }
+
+        .section-title-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 1px dashed;
+            padding-bottom: 4px;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 16px;
+            text-transform: uppercase;
+        }
+
+        .section-countdown {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+
+        #clock-display {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        #clock-display:hover {
+            opacity: 0.8;
+        }
+
+        .dashboard-grid {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            min-height: 0;
+        }
+
+        /* Maximized line container for specialized vertical panels */
+        #scrolling-payload {
+            font-size: 15px;
+            line-height: 1.6;
+            height: 680px; 
+            overflow: hidden;
+            white-space: pre-wrap;
+            border: 1px dashed rgba(128, 128, 128, 0.4);
+            padding: 15px;
+            margin-bottom: 5px;
+            flex-grow: 1;
+        }
+
+        .footer {
+            margin-top: auto;
+            border-top: 1px dashed;
+            padding-top: 8px;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .theme-orange { background-color: #000000; color: #ff9900; }
+        .theme-orange #monitor-frame { border-color: #ff9900; }
+        
+        .theme-green { background-color: #000000; color: #00ff66; }
+        .theme-green #monitor-frame { border-color: #00ff66; }
+
+        .theme-blue { background-color: #001133; color: #ffffff; }
+        .theme-blue #monitor-frame { border-color: #ffffff; }
+    </style>
+</head>
+<body class="theme-orange">
+
+<div id="monitor-frame">
+    <div class="section-title-container" style="margin-top: 0;">
+        <span class="section-title">CHRONO SYNC SIGNAL // CLICK TO CYCLE THEME</span>
+    </div>
+    <div id="clock-display" onclick="cycleSystemTheme()">CONNECTING TEMPORAL PIPELINE...</div>
+
+    <div class="dashboard-grid">
+        <div class="section-title-container">
+            <span class="section-title">HISTORICAL EVENTS STREAM</span>
+            <span id="left-timer" class="section-countdown">NEXT: 4s</span>
+        </div>
+        <div id="scrolling-payload">INITIALIZING PARSING ENGINE HANDSHAKE...</div>
+    </div>
+
+    <div class="footer">
+        <span id="feed-indicator">ARCHIVE SOURCE: EN.WIKIPEDIA / VERTICAL_ARRAY</span>
+        <span id="refresh-counter">GLOBAL SYNC: 15:00</span>
+    </div>
+</div>
+
+<script>
+    const clockDisplay = document.getElementById('clock-display');
+    const scrollingPayload = document.getElementById('scrolling-payload');
+    const refreshCounter = document.getElementById('refresh-counter');
+    const leftTimerDisplay = document.getElementById('left-timer');
+    
+    let globalSyncSeconds = 900; 
+    let leftSecondsRemaining = 4; // Accelerated slightly for a better visual flow on long lists
+
+    let activeMetricsLog = [];
+    let currentThemeIndex = 0; 
+    const themes = ['theme-orange', 'theme-green', 'theme-blue'];
+
+    let historyEvents = [];
+    let rollingShortTicker = ["ESTABLISHING VERTICAL CHRONO STACK...", "POLLING WIKIPEDIA SECTOR DEPOSITORIES..."];
+
+    function updateClock() {
+        const now = new Date();
+        clockDisplay.innerText = `${now.toLocaleTimeString()} | ${now.toLocaleDateString().toUpperCase()} // ARCHIVE_UNLOCKED`;
+    }
+
+    function cycleSystemTheme() {
+        document.body.classList.remove(themes[currentThemeIndex]);
+        currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+        document.body.classList.add(themes[currentThemeIndex]);
+    }
+
+    async function fetchHistoricalData() {
+        try {
+            const now = new Date();
+            const monthName = now.toLocaleString('en-US', { month: 'long' });
+            const dayNum = now.getDate();
+            const pageTarget = `${monthName}_${dayNum}`;
+
+            const url = `https://en.wikipedia.org/w/api.php?origin=*&action=parse&page=${encodeURIComponent(pageTarget)}&prop=text&section=1&format=json`;
+            
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("API Connection Interrupted.");
+            const data = await res.json();
+            
+            const rawHtml = data.parse?.text?.["*"];
+            if (!rawHtml) throw new Error("No payload parsed.");
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(rawHtml, "text/html");
+            const listItems = doc.querySelectorAll("li");
+
+            historyEvents = Array.from(listItems)
+                .map(li => li.textContent.trim())
+                .map(text => text.replace(/\[\d+\]/g, ""))
+                .filter(text => text.length > 10 && !text.includes("Chapters"));
+
+            if (historyEvents.length === 0) {
+                throw new Error("Empty dataset mapping.");
+            }
+
+            rollingShortTicker = historyEvents.map(text => `[EVENT DETECTED] ${text.toUpperCase()}`);
+            
+            tickerIndex = 0;
+            activeMetricsLog = [];
+            cycleLeftData();
+        } catch (err) {
+            activeMetricsLog = [">> ATTEMPTING VERTICAL TIMELINE RESYNC..."];
+            rollingShortTicker = [
+                "CRITICAL GAP: TERMINAL DATA FRAME NOT SECURED.",
+                "RETRYING SYSTEM DATA PATHS IN T-15S.",
+                "CONFIRM UNRESTRICTED BROADCAST LINKS."
+            ];
+        }
+    }
+
+    let tickerIndex = 0;
+    function cycleLeftData() {
+        if (rollingShortTicker.length === 0) return;
+        activeMetricsLog.push(rollingShortTicker[tickerIndex]);
+        
+        // Expanded to keep up to 16 rows active on the screen concurrently
+        if (activeMetricsLog.length > 16) activeMetricsLog.shift();
+        scrollingPayload.innerText = activeMetricsLog.join('\n\n');
+        
+        tickerIndex = (tickerIndex + 1) % rollingShortTicker.length;
+    }
+
+    function runCountdowns() {
+        globalSyncSeconds--;
+        if (globalSyncSeconds <= 0) {
+            fetchHistoricalData();
+            globalSyncSeconds = 900; 
+        }
+        const syncMins = Math.floor(globalSyncSeconds / 60);
+        const syncSecs = globalSyncSeconds % 60;
+        refreshCounter.innerText = `GLOBAL SYNC: ${syncMins.toString().padStart(2, '0')}:${syncSecs.toString().padStart(2, '0')}`;
+
+        leftSecondsRemaining--;
+        if (leftSecondsRemaining <= 0) {
+            cycleLeftData();
+            leftSecondsRemaining = 4;
+        }
+        leftTimerDisplay.innerText = `NEXT: ${leftSecondsRemaining}s`;
+    }
+
+    window.onload = function() {
+        updateClock();
+        fetchHistoricalData();
+        
+        setInterval(updateClock, 1000);
+        setInterval(runCountdowns, 1000);
+    };
+</script>
+
+</body>
+</html>
