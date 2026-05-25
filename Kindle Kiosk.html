@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiosk Terminal</title>
+    <style>
+        /* Flat, high-contrast monochrome design */
+        html, body {
+            background-color: #000000;
+            color: #ff9900; 
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 15px;
+            box-sizing: border-box;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #monitor-frame {
+            border: 2px solid #ff9900;
+            padding: 15px;
+            height: calc(100vh - 34px);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            box-sizing: border-box;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 15px;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        #clock-display {
+            font-size: 22px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .dashboard-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            flex-grow: 1;
+        }
+
+        @media (min-width: 550px) {
+            .dashboard-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+        }
+
+        .data-block {
+            white-space: pre-wrap;
+            line-height: 1.5;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .footer {
+            margin-top: auto;
+            border-top: 1px dashed #ff9900;
+            padding-top: 6px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+
+<div id="monitor-frame">
+    <div class="section-title">[ CLOCK ]</div>
+    <div id="clock-display">CONNECTING SYSTEM CLOCK...</div>
+
+    <div class="dashboard-grid">
+        <div>
+            <div class="section-title">[ RADAR ]</div>
+            <div id="current-payload" class="data-block">FETCHING TELEMETRY...</div>
+        </div>
+        <div>
+            <div class="section-title">[ OUTLOOK ]</div>
+            <div id="forecast-payload" class="data-block">FETCHING PREDICTIONS...</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span>MATRIX: ONLINE</span>
+        <span id="refresh-counter">REFRESH: 15:00</span>
+    </div>
+</div>
+
+<script>
+    const clockDisplay = document.getElementById('clock-display');
+    const currentPayload = document.getElementById('current-payload');
+    const forecastPayload = document.getElementById('forecast-payload');
+    const refreshCounter = document.getElementById('refresh-counter');
+    
+    let secondsUntilRefresh = 900;
+
+    function updateClock() {
+        const now = new Date();
+        clockDisplay.innerText = `${now.toLocaleTimeString()} | ${now.toLocaleDateString().toUpperCase()}`;
+    }
+
+    // High-compatibility open engine for legacy mobile browsers
+    async function fetchWeatherData() {
+        try {
+            // Using an open latitude/longitude endpoint that bypasses restrictive NWS User-Agent handshakes
+            const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=39.1031&longitude=-84.5120&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York');
+            
+            if (!res.ok) throw new Error("Link drop.");
+            const data = await res.json();
+            
+            // Map common WMO weather codes to text matrices
+            const interpretCode = (code) => {
+                if (code === 0) return "CLEAR SKY";
+                if (code <= 3) return "PARTLY CLOUDY";
+                if (code <= 48) return "FOG/MIST";
+                if (code <= 67) return "RAIN/DRIZZLE";
+                if (code <= 77) return "SNOW FLURRIES";
+                return "STORMS DETECTED";
+            };
+
+            // Current
+            const cur = data.current;
+            currentPayload.innerText = 
+                `LOCATION   : CINCINNATI, OH\n` +
+                `SKY CONDITIONS: ${interpretCode(cur.weather_code)}\n` +
+                `THERMAL INT: ${Math.round(cur.temperature_2m)}°F\n` +
+                `HUMIDITY   : ${cur.relative_humidity_2m}%\n` +
+                `WIND FORCE : ${Math.round(cur.wind_speed_10m)} MPH`;
+
+            // Forecast
+            const daily = data.daily;
+            let forecastText = "";
+            for(let i=0; i<3; i++) {
+                const dateObj = new Date(daily.time[i] + 'T00:00:00');
+                const dayName = dateObj.toLocaleDateString([], {weekday: 'short'}).toUpperCase();
+                forecastText += 
+                    `${dayName}:\n` +
+                    `  HIGH FLOOR : ${Math.round(daily.temperature_2m_max[i])}°F\n` +
+                    `  LOW CEILING: ${Math.round(daily.temperature_2m_min[i])}°F\n` +
+                    `  PRECIP CHC : ${daily.precipitation_probability_max[i]}%\n\n`;
+            }
+            forecastPayload.innerText = forecastText.trim();
+
+        } catch (err) {
+            currentPayload.innerText = `ERR: CH 01 DOWN`;
+            forecastPayload.innerText = `ERR: CH 02 DOWN\n(${err.message.toUpperCase()})`;
+        }
+    }
+
+    function updateCountdown() {
+        secondsUntilRefresh--;
+        if (secondsUntilRefresh <= 0) {
+            fetchWeatherData();
+            secondsUntilRefresh = 900; 
+        }
+        const mins = Math.floor(secondsUntilRefresh / 60);
+        const secs = secondsUntilRefresh % 60;
+        refreshCounter.innerText = `REFRESH: ${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    window.onload = function() {
+        updateClock();
+        fetchWeatherData();
+        setInterval(updateClock, 1000);
+        setInterval(updateCountdown, 1000);
+    };
+</script>
+
+</body>
+</html>
